@@ -1,0 +1,542 @@
+(function(d, S) {
+	'use strict';
+
+	const Filter = function() {
+		const controller = 'data.d';
+
+		const fields = {
+			contest: { selector: '.js__select_contest' },
+			proposalType: { selector: '.js__select_proposal_type' },
+			status: { selector: '.js__select_status' },
+			curator: { selector: '.js__select_curator' },
+			municipality: { selector: '.js__select_municipality' },
+			location: { selector: '.js__select_location' },
+			town: { selector: '.js__select_town' },
+			contender: { selector: '.js__select_contenders' },
+		};
+
+		let form;
+		let dataCategory = '';
+
+		function init() {
+			form = d.getElementById('proposalsFilter-form__js');
+			dataCategory = form.dataset.category;
+
+			for (let field in fields) {
+				if (!fields.hasOwnProperty(field)) {
+					continue;
+				}
+				fields[field].el = form.querySelector(fields[field].selector);
+			}
+
+			loadContests();
+			loadProposalTypes();
+			loadStatuses();
+			loadCurators();
+			loadMunicipalities();
+
+			clearSelect(fields.location.el);
+			clearSelect(fields.town.el);
+			clearSelect(fields.contender.el);
+
+			addListeners();
+		}
+
+		function getDataCategory() {
+			return dataCategory;
+		}
+
+		function getValues() {
+			return S.retrieveFormDataToJson(form);
+		}
+
+		function block() {
+			S.blockIt(form);
+		}
+
+		function unblock() {
+			S.unblockIt(form);
+		}
+
+		function addListeners() {
+			fields.municipality.el.addEventListener('change', (evt) => {
+				const value = parseInt(evt.target.value);
+
+				if (value) {
+					loadLocations(value);
+				} else {
+					clearSelect(fields.location.el);
+				}
+
+				clearSelect(fields.town.el);
+			});
+
+			fields.location.el.addEventListener('change', (evt) => {
+				const value = parseInt(evt.target.value);
+
+				if (value) {
+					loadTowns(value);
+					loadContenders(value);
+				} else {
+					clearSelect(fields.town.el);
+					clearSelect(fields.contender.el);
+				}
+			});
+
+			form.addEventListener('submit', (evt) => {
+				S.ignoreEvent(evt);
+				Proposals.reloadData();
+			});
+		}
+
+		function convertDictionaryItems(items) {
+			const rows = [];
+			items.forEach((item) => {
+				rows.push({
+					id: item.value,
+					name: item.text
+				});
+			});
+			return rows;
+		}
+
+		function clearSelect(select) {
+			const defaultValue =  select.dataset.default;
+
+			select.innerHTML = '';
+			if (defaultValue) {
+				select.append(new Option(defaultValue, ''));
+			}
+		}
+
+		function updateSelect(select, items) {
+			clearSelect(select);
+			items.forEach((item) => {
+				select.append(new Option(item.name, item.id));
+			});
+		}
+
+		function loadProposalTypes() {
+			S.xhr({
+				data: {
+					controller: controller,
+					action: 'pt'
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.proposalType.el, convertDictionaryItems(response.data));
+				}
+			});
+		}
+
+		function loadContests() {
+			S.xhr({
+				data: {
+					controller: controller,
+					action: 'c'
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.contest.el, response.data);
+				}
+			});
+		}
+
+		function loadStatuses() {
+			S.xhr({
+				data: {
+					controller: controller,
+					category: dataCategory,
+					action: 'rs'
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.status.el, response.data);
+				}
+			});
+		}
+
+		function loadMunicipalities() {
+			S.xhr({
+				method: 'get',
+				data: {
+					controller: controller,
+					action: 'm'
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.municipality.el, response.data);
+				}
+			});
+		}
+
+		function loadLocations(district) {
+			S.xhr({
+				method: 'get',
+				data: {
+					controller: controller,
+					action: 'l',
+					d: district
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.location.el, response.data);
+				}
+			});
+		}
+
+		function loadTowns(district) {
+			S.xhr({
+				method: 'get',
+				data: {
+					controller: controller,
+					action: 'l',
+					d: district
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.town.el, response.data);
+				}
+			});
+		}
+
+		function loadContenders(location) {
+			S.xhr({
+				data: {
+					controller: controller,
+					action: 'contenders',
+					l: location
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.contender.el, response.data);
+				}
+			});
+		}
+
+		function loadCurators() {
+			S.xhr({
+				data: {
+					controller: controller,
+					action: 'curators',
+				},
+				onSuccess: (response) => {
+					updateSelect(fields.curator.el, response.data);
+				}
+			});
+		}
+
+		return {
+			init: init,
+			getDataCategory: getDataCategory,
+			getValues: getValues,
+			block: block,
+			unblock: unblock
+		};
+	}();
+
+	const Proposals = function() {
+		const controller = 'proposals.d';
+
+		let table;
+		let btnLoadMore;
+		let page = 1;
+
+		function init() {
+			table = d.getElementById('proposals_table');
+			btnLoadMore = d.getElementById('load-more');
+
+			loadRows();
+			addListeners();
+		}
+
+		function addListeners() {
+			btnLoadMore.addEventListener('click', (evt) => {
+				S.ignoreEvent(evt);
+				page++;
+				loadRows();
+			});
+
+			[...d.getElementsByClassName('js__export-to-spreadsheet')]
+				.forEach((btn) => {
+					btn.addEventListener('click', (evt) => {
+						S.ignoreEvent(evt);
+						getSpreadsheet(btn.dataset.type);
+					});
+				});
+		}
+
+		function clearTable() {
+			table.innerHTML = '';
+		}
+
+		function loadRows() {
+			S.xhr({
+				data: {
+					controller: controller,
+					action: 'lk_proposals',
+					category: Filter.getDataCategory(),
+					filter: Filter.getValues(),
+					page: page
+				},
+				onBeforeSend: () => {
+					S.blockIt(table);
+				},
+				onComplete: () => {
+					S.unblockIt(table);
+				},
+				onSuccess: (response) => {
+					drawRows(response.rows);
+					console.log(response);
+					// console.log(Filter.getValues());
+					// console.log(Filter.getDataCategory());
+					if (response.isNotEnd) {
+						S.show(btnLoadMore);
+					} else {
+						S.hide(btnLoadMore);
+					}
+				}
+			});
+		}
+
+		function reloadData() {
+			page = 1;
+			loadRows();
+		}
+
+		function joinProposalLocation(proposalData) {
+			return [proposalData.municipality, proposalData.location, proposalData.town]
+				.filter(word => word)
+				.join(', ') || '-';
+		}
+
+		function drawRows(rows) {
+			let html = '';
+
+			if (page === 1) {
+				clearTable();
+			}
+
+			rows.forEach((row) => {
+				html += '<div class="styled-table__row flex">' +
+					`<div class="styled-table__cell styled-table__cell_10">${row.contest}</div>` +
+					`<div class="styled-table__cell styled-table__cell_15">${row.status}</div>` +
+					`<div class="styled-table__cell styled-table__cell_20">${joinProposalLocation(row)}</div>` +
+					'<div class="styled-table__cell styled-table__cell_20">' +
+						'<div class="float-contacts js__float-contacts"' +
+							' data-position="right"' +
+							' data-target="Contender"' +
+							` data-id="${row.contender_id}">` +
+							`<span class="float-contacts__btn js__show-float-contacts">${row.contender}</span>` +
+						'</div>' +
+					'</div>' +
+					'<div class="styled-table__cell styled-table__cell_15">' +
+						(row.type || '-') +
+					'</div>' +
+					'<div class="styled-table__cell styled-table__cell_15">' +
+						(row.request_curator
+							? '<div class="float-contacts js__float-contacts"' +
+								' data-position="left"' +
+								' data-target="Staff"' +
+								` data-id="${row.request_curator_id}">` +
+								`<span class="float-contacts__btn js__show-float-contacts">${row.request_curator}</span>` +
+							'</div>'
+							: '-') +
+					'</div>' +
+					'<div class="styled-table__heading_item styled-table__cell_5 flex jc-c ai-c">' +
+						`<a class="external-link" href="/lk/proposal_info/?id=${row.id}" title="Подробнее"></a>` +
+					'</div>' +
+				'</div>';
+			});
+
+			table.innerHTML += html;
+		}
+
+		function getSpreadsheet(type) {
+			S.xhr({
+				data: {
+					controller: controller,
+					action: 'getSpreadsheet',
+					type: type,
+					category: Filter.getDataCategory(),
+					filter: Filter.getValues()
+				},
+				onBeforeSend: () => {
+					Filter.block();
+				},
+				onComplete: () => {
+					Filter.unblock();
+				},
+				onSuccess: (response) => {
+					console.log(response);
+
+					if (response.download) {
+						S.download(response.download);
+					}
+				}
+			});
+		}
+
+		return {
+			init: init,
+			reloadData: reloadData
+		};
+	}();
+
+	d.addEventListener('DOMContentLoaded', () => {
+		// Filter.init();
+		// Proposals.init();
+	});
+
+}(document, Sensei));
+
+
+
+
+const proposals = function() {
+	'use strict'
+	let container,
+	params,
+	readmore_btn,
+	table_container_html,
+	page,
+	btnLoadMore;
+
+	function init() {
+		container = document.querySelector('.tableContainer__js');
+
+		if (!container) {
+			return;
+		}
+
+		page = 1;
+		btnLoadMore = document.getElementById('load-more');
+
+		table_container_html = '<div class="styled-table__row flex">';
+
+		Filter.init();
+		addListeners()
+
+		const data = setFields();
+
+		params = {
+			controller: 'proposals.d',
+			action: 'lk_proposals',
+			category: Filter.getDataCategory(),
+			filter: Filter.getValues(),
+			page: page
+		}
+
+		let setOfVariabl = {
+			table_container_html: table_container_html,
+			arraySetFields: data,
+		}
+		selectTable.createTablContainer();
+		selectTable.setField(setOfVariabl);
+		selectTable.loadRows(params);
+	}
+
+	function getSpreadsheet(type) {
+		Sensei.xhr({
+			data: {
+				controller: 'proposals.d',
+				action: 'getSpreadsheet',
+				type: type,
+				category: Filter.getDataCategory(),
+				filter: Filter.getValues()
+			},
+			onBeforeSend: () => {
+				Filter.block();
+			},
+			onComplete: () => {
+				Filter.unblock();
+			},
+			onSuccess: (response) => {
+				console.log(response);
+
+				if (response.download) {
+					Sensei.download(response.download);
+				}
+			}
+		});
+	}
+
+	function addListeners() {
+		btnLoadMore.addEventListener('click', (evt) => {
+			Sensei.ignoreEvent(evt);
+			params.page++;
+			selectTable.loadRows(params);
+		});
+
+		[...document.getElementsByClassName('js__export-to-spreadsheet')]
+			.forEach((btn) => {
+				btn.addEventListener('click', (evt) => {
+					Sensei.ignoreEvent(evt);
+					getSpreadsheet(btn.dataset.type);
+				});
+			});
+
+		let form = document.getElementById('proposalsFilter-form__js');
+
+		form.addEventListener('submit', (evt) => {
+			Sensei.ignoreEvent(evt);
+
+			params.filter = Filter.getValues();
+			selectTable.loadRows(params);
+		});
+	}
+
+	function setFields(){
+		return[
+			{title: 'Учебный год', field: 'contest', width: '10%'},
+			{title: 'Статус', field: 'status', width: '15%'},
+			{title: 'Муниципальное образование', field: 'joinProposalLocation',  width: '20%',
+				append: function(params){
+					return `<div class="styled-table__cell" style="width:20%">
+						${commonTableFunctions.joinProposalLocation(params)}
+					</div>`
+				}
+			},
+			{title: 'Образовательная организация', field: 'contender', width: '20%',
+				append: function(params) {
+					return `
+					<div class="styled-table__cell" style="width:20%">
+						<div class="float-contacts js__float-contacts"
+							data-position="right"
+							data-target="Contender"
+							data-id="${params.contender_id}">
+							<span class="float-contacts__btn js__show-float-contacts">${params.contender}</span>
+						</div>
+					</div>`
+				}
+			},
+			{title: 'Тип проекта', field: 'type',  width: '15%',
+				append: function(params) {
+					return `<div class="styled-table__cell" style="width:15%">
+						${params.type || '-'}
+					</div>`
+				}
+			},
+			{title: 'Ответственный', field: 'request_curator', width: '15%',
+				append: function(params) {
+					return '<div class="styled-table__cell" style="width:15%">' +
+						(params.request_curator
+							? '<div class="float-contacts js__float-contacts"' +
+								' data-position="left"' +
+								' data-target="Staff"' +
+								` data-id="${params.request_curator_id}">` +
+								`<span class="float-contacts__btn js__show-float-contacts">${params.request_curator}</span>` +
+							'</div>'
+							: '-') +
+						'</div>'
+					;
+				}
+			} ,
+			{title: '', field: 'external-link', width: '5%',
+				append: function(params) {
+					return `
+					<div class="styled-table__heading_item flex jc-c ai-c" style='width:${params.external_link_style}'>
+						<a class="external-link" href="/lk/proposal_info/?id=${params.id}" title="Подробнее"></a>
+					</div>`;
+				}
+			}
+		]
+	}
+
+	document.addEventListener('DOMContentLoaded', () => {
+		init();
+	});
+}();
