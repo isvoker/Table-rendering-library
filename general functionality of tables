@@ -1,0 +1,59 @@
+const commonTableFunctions = function (){
+
+	function score_htmlInit(row){
+		let score_html,
+		score,
+		score_final = parseInt(row.score_final),
+		score_auto = parseInt(row.score_auto);
+
+		score_html = '<div class="table-scores">';
+
+		if (row.score_final) {
+			score_html += `<span class="table-scores__old">${score_auto}</span><span class="table-scores__new">${score_final}</span>`;
+		} else {
+			score_html += `<span class="table-scores__new">${score_auto}</span>`;
+		}
+		score_html += '</div>';
+
+		if (score_final) {
+			score = score_final;
+		} else {
+			score = score_auto;
+		}
+		return score_html;
+	}
+
+	function numberFormatter(number) {
+		let IntlNumberFormat;
+		let numberFormatter;
+
+		if (window.hasOwnProperty('Intl')) {
+			IntlNumberFormat = new Intl.NumberFormat(
+				'ru-RU',
+				{style: 'decimal', useGrouping: true, maximumFractionDigits: 0}
+			);
+			numberFormatter = function (n) {
+				return IntlNumberFormat.format(n);
+			};
+		} else {
+			numberFormatter = function (n) {
+				return n.toLocaleString();
+			};
+		}
+
+		return numberFormatter(number);
+	}
+
+	function joinProposalLocation(proposalData) {
+		return [proposalData.municipality, proposalData.location, proposalData.town]
+			.filter(word => word)
+			.join(', ') || '-';
+	}
+
+	return {
+		score_htmlInit:score_htmlInit,
+		numberFormatter: numberFormatter,
+		joinProposalLocation:joinProposalLocation,
+
+	};
+}();
