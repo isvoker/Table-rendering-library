@@ -1,0 +1,112 @@
+const selectTable = function() {
+	'use strict'
+
+	let table_container;
+	let setOfVariabl;
+	let btnLoadMore = document.getElementById('load-more');
+
+	function createTablContainer(){
+		const container = document.querySelector('.tableContainer__js');
+
+		let header_containers = `
+		<div id="proposals_table" class="styled-table__rows proposals">
+			<div class="styled-table__placeholder">Тут пока нет ни одной записи</div>
+		</div>`
+
+		let table_containers = `<div class="styled-table__shell controllerProposals"></div>`;
+		container.innerHTML =  table_containers + header_containers;
+
+		table_container = document.getElementById('proposals_table');
+	}
+
+	function clearTable() {
+		table_container.innerText = '';
+	}
+
+	function setField(field) {
+		setOfVariabl= field;
+		addHeadersToTable();
+	}
+
+	function loadRows(params) {
+		Sensei.xhr({
+			data: params,
+
+			onBeforeSend: () => {
+				Sensei.blockIt(table_container);
+			},
+			onComplete: () => {
+				Sensei.unblockIt(table_container);
+			},
+			onSuccess: (data) => {
+				addRowsToTable(data.rows);
+				if (!data.isNotEnd) {
+					Sensei.show(btnLoadMore);
+				} else {
+					Sensei.hide(btnLoadMore);
+
+				}
+			}
+		});
+	}
+
+	function addHeadersToTable() {
+		let header_container = document.querySelector('.styled-table__shell')
+		const array_tableHeader = setOfVariabl.arraySetFields;
+		let table_header_html = `<div class="styled-table__heading container flex ai-c">`;
+
+		for (let i = 0; i < array_tableHeader.length; i++) {
+			let attributes = array_tableHeader[i].title;
+			let style = array_tableHeader[i].width;
+
+			let block_html = `<div class="styled-table__heading_item" style="width:${style}">${attributes}</div>`;
+
+			table_header_html += block_html;
+		}
+		header_container.innerHTML = table_header_html;
+	}
+
+	function addRowsToTable(rows) {
+		clearTable();
+
+		let
+		tableRow ='',
+		tableСell,
+		number =0;
+		let array_params = rows;
+		const array_tableBody = setOfVariabl.arraySetFields;
+
+		rows.forEach(function(row) {
+			let budget = parseInt(row.budget);
+
+			let budget_formatted = commonTableFunctions.numberFormatter(budget);
+
+			array_tableBody.forEach(function(item) {
+				tableСell = `<div class="styled-table__cell" style='width:${item.width}'>${row[item.field]}</div>`;
+
+				if(item.append != undefined){
+					let obj_params = {[(item.field + '_style').replace(/-/g,"_")]: item.width}
+					// [('budget_formatted')]: budget_formatted}
+
+					Object.assign(array_params[number], obj_params);
+
+					tableСell = item.append.apply(null, array_params);
+				}
+
+				tableRow += tableСell;
+			});
+
+			table_container.innerHTML += setOfVariabl.table_container_html + tableRow;
+			tableRow = '';
+			number++;
+		});
+		console.log(array_params);
+
+	}
+  
+	return {
+		loadRows: loadRows,
+		setField:setField,
+		createTablContainer:createTablContainer
+	};
+}();
