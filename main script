@@ -1,112 +1,125 @@
-const selectTable = function() {
-	'use strict'
+const libraryRenderingForm = (function () {
+	"use strict";
 
-	let table_container;
-	let setOfVariabl;
-	let btnLoadMore = document.getElementById('load-more');
+	let tableContainer;
 
-	function createTablContainer(){
-		const container = document.querySelector('.tableContainer__js');
-
-		let header_containers = `
-		<div id="proposals_table" class="styled-table__rows proposals">
-			<div class="styled-table__placeholder">Тут пока нет ни одной записи</div>
-		</div>`
-
-		let table_containers = `<div class="styled-table__shell controllerProposals"></div>`;
-		container.innerHTML =  table_containers + header_containers;
-
-		table_container = document.getElementById('proposals_table');
-	}
-
-	function clearTable() {
-		table_container.innerText = '';
-	}
-
-	function setField(field) {
-		setOfVariabl= field;
-		addHeadersToTable();
-	}
-
-	function loadRows(params) {
+	function loadRows(options) {
 		Sensei.xhr({
-			data: params,
+			data: options.controllerParams,
 
 			onBeforeSend: () => {
-				Sensei.blockIt(table_container);
+				Sensei.blockIt(tableContainer);
 			},
 			onComplete: () => {
-				Sensei.unblockIt(table_container);
+				Sensei.unblockIt(tableContainer);
 			},
 			onSuccess: (data) => {
-				addRowsToTable(data.rows);
-				if (!data.isNotEnd) {
-					Sensei.show(btnLoadMore);
-				} else {
-					Sensei.hide(btnLoadMore);
-
-				}
-			}
+				checkBtnLoadMore(data, options);
+				addRowsToTable(data.rows, options);
+			},
 		});
 	}
 
-	function addHeadersToTable() {
-		let header_container = document.querySelector('.styled-table__shell')
-		const array_tableHeader = setOfVariabl.arraySetFields;
-		let table_header_html = `<div class="styled-table__heading container flex ai-c">`;
-
-		for (let i = 0; i < array_tableHeader.length; i++) {
-			let attributes = array_tableHeader[i].title;
-			let style = array_tableHeader[i].width;
-
-			let block_html = `<div class="styled-table__heading_item" style="width:${style}">${attributes}</div>`;
-
-			table_header_html += block_html;
+	function checkBtnLoadMore(data, options) {
+		if (!options.paramsForCreatTabl.btnLoadMore) {
+			return;
 		}
-		header_container.innerHTML = table_header_html;
+
+		const tablContainer = options.paramsForCreatTabl.container;
+		const btnLoadMore = tablContainer.querySelector(".load-more-btn");
+
+		if (data.show_btn) {
+			Sensei.show(btnLoadMore);
+		} else {
+			Sensei.hide(btnLoadMore);
+		}
 	}
 
-	function addRowsToTable(rows) {
-		clearTable();
+	function clearTable(tableContainer) {
+		tableContainer.innerText = "";
+	}
 
-		let
-		tableRow ='',
-		tableСell,
-		number =0;
-		let array_params = rows;
-		const array_tableBody = setOfVariabl.arraySetFields;
+	function setField(options) {
+		createTablContainer(options);
+		addHeaderToTable(options);
+	}
 
-		rows.forEach(function(row) {
-			let budget = parseInt(row.budget);
+	function createTablContainer(options) {
+		const table = options.container;
 
-			let budget_formatted = commonTableFunctions.numberFormatter(budget);
+		let header_html = `<div class="styled-table__shell"></div>`,
+			btnLoad;
 
-			array_tableBody.forEach(function(item) {
-				tableСell = `<div class="styled-table__cell" style='width:${item.width}'>${row[item.field]}</div>`;
+		let body_html = `
+		<div class="styled-table__rows proposals_table">
+			<div class="styled-table__placeholder">Тут пока нет ни одной записи</div>
+		</div>`;
 
-				if(item.append != undefined){
-					let obj_params = {[(item.field + '_style').replace(/-/g,"_")]: item.width}
-					// [('budget_formatted')]: budget_formatted}
+		if (options.btnLoadMore) {
+			btnLoad = `
+			<div class="flex jc-c">
+				<a class="load-more-btn hidden-el js__more_rows" data-page="1" href="#">Загрузить больше</a>
+			</div>`;
+		} else {
+			btnLoad = "";
+		}
 
-					Object.assign(array_params[number], obj_params);
+		table.innerHTML += header_html + body_html + btnLoad;
+		tableContainer = table.querySelector(`.proposals_table`);
 
-					tableСell = item.append.apply(null, array_params);
+	}
+
+	function addHeaderToTable(options) {
+		const setFields = options.fields;
+		const tablContainer = options.container;
+		const headerContainer = tablContainer.querySelector(".styled-table__shell");
+
+		let header_html = `<div class="styled-table__heading container flex ai-c">`;
+
+		setFields.forEach(function (field) {
+			header_html += `<div class="styled-table__heading_item" style="width:${field.width}">${field.title}</div>`;
+		});
+		headerContainer.innerHTML = header_html + `</div>`;
+	}
+
+	function addRowsToTable(rows, options) {
+		const optionsForCreatBody = options.paramsForCreatTabl;
+		const tablContainer = options.paramsForCreatTabl.container;
+		const tableBody = tablContainer.querySelector(".proposals_table");
+
+		if (options.paramsForCreatTabl.clearTable){
+			clearTable(tableBody);
+		}
+
+		let tableRow = "",
+			tableСell,
+			rowContainer_html;
+
+		const setFields = optionsForCreatBody.fields;
+
+		rows.forEach(function (row) {
+			rowContainer_html = optionsForCreatBody.rowContainer(row);
+
+			setFields.forEach(function (field) {
+				tableСell = `<div class="styled-table__cell" style='width:${field.width}'>`;
+
+				if (field.hasOwnProperty("append")) {
+					tableСell += field.append(row);
+				} else {
+					tableСell += row[field.field];
 				}
+				tableСell += "</div>";
 
 				tableRow += tableСell;
 			});
-
-			table_container.innerHTML += setOfVariabl.table_container_html + tableRow;
-			tableRow = '';
-			number++;
+			tableBody.innerHTML += rowContainer_html + tableRow + "</div>";
+			tableRow = "";
 		});
-		console.log(array_params);
-
 	}
-  
+
 	return {
 		loadRows: loadRows,
-		setField:setField,
-		createTablContainer:createTablContainer
+		setField: setField,
+		createTablContainer: createTablContainer,
 	};
-}();
+})();
