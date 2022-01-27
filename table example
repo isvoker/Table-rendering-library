@@ -1,10 +1,6 @@
 const proposals = (function () {
 	"use strict";
-	let options,
-		container,
-		page,
-		btnLoadMore
-		;
+	let options, container, page;
 
 	function init() {
 		container = document.getElementById("tableContainer");
@@ -13,33 +9,38 @@ const proposals = (function () {
 			return;
 		}
 
+		let form = document.getElementById('filter-form');
 		page = 1;
-
-		// rowContainer_html = '<div class="styled-table__row flex">';
-
 		Filter.init();
 
 		options = {
-			controllerParams : {
+			controllerParams: {
 				controller: "proposals.d",
 				action: "lk_proposals",
-				category: Filter.getDataCategory(),
+				category: form.dataset.category,
 				filter: Filter.getValues(),
 				page: page,
 			},
 
 			paramsForCreatTabl: {
-				fields: setFields,
+				cellsCollection: cellsCollection,
 				rowContainer: function () {
-					return `<div class="styled-table__row flex">`
+					return `<div class="styled-table__row flex">`;
 				},
 				btnLoadMore: true,
 				container: container,
-				clearTable: true
-			}
-		}
+				clearTable: true,
+			},
+		};
 
-		libraryRenderingForm.setField(options.paramsForCreatTabl);
+		Filter.onApply((filterValues) => {
+			options.controllerParams.page = 1;
+			options.controllerParams.filter = filterValues;
+			options.paramsForCreatTabl.clearTable = true;
+			libraryRenderingForm.loadRows(options);
+		});
+
+		libraryRenderingForm.createStaticPartOfTable(options.paramsForCreatTabl);
 		libraryRenderingForm.loadRows(options);
 		addListeners();
 	}
@@ -60,8 +61,6 @@ const proposals = (function () {
 				Filter.unblock();
 			},
 			onSuccess: (response) => {
-				console.log(response);
-
 				if (response.download) {
 					Sensei.download(response.download);
 				}
@@ -70,16 +69,6 @@ const proposals = (function () {
 	}
 
 	function addListeners() {
-		btnLoadMore = container.querySelector(".js__more_rows");
-
-		btnLoadMore.addEventListener("click", (evt) => {
-			Sensei.ignoreEvent(evt);
-			options.controllerParams.page++;
-			options.paramsForCreatTabl.clearTable = false;
-			libraryRenderingForm.loadRows(options);
-
-		});
-
 		[...document.getElementsByClassName("js__export-to-spreadsheet")].forEach(
 			(btn) => {
 				btn.addEventListener("click", (evt) => {
@@ -88,76 +77,46 @@ const proposals = (function () {
 				});
 			}
 		);
-
-		let form = document.getElementById("proposalsFilter-form__js");
-
-		form.addEventListener("submit", (evt) => {
-			Sensei.ignoreEvent(evt);
-			options.controllerParams.filter = Filter.getValues();
-			options.controllerParams.page = 1;
-			options.paramsForCreatTabl.clearTable = true;
-			libraryRenderingForm.loadRows(options);
-		});
 	}
 
-	const setFields = [
+	const cellsCollection = [
 		{ title: "Учебный год", field: "contest", width: "10%" },
 		{ title: "Статус", field: "status", width: "15%" },
-		{
-			title: "Муниципальное образование",
-			field: "joinProposalLocation",
-			width: "20%",
+		{ title: "Муниципальное образование", field: "joinProposalLocation", width: "20%",
 			append: function (params) {
-				return `
-					${commonTableFunctions.joinProposalLocation(params)}
-				`;
+				return commonTableFunctions.joinProposalLocation(params);
 			},
 		},
-		{
-			title: "Образовательная организация", field: "contender",
-			width: "20%",
+		{ title: "Образовательная организация", field: "contender", width: "20%",
 			append: function (params) {
-				return `
-					<div class="float-contacts js__float-contacts"
-						data-position="right"
-						data-target="Contender"
-						data-id="${params.contender_id}">
-						<span class="float-contacts__btn js__show-float-contacts">${params.contender}</span>
-					</div>
-				`;
+				return `<div class="float-contacts js__float-contacts"
+					data-position="right"
+					data-target="Contender"
+					data-id="${params.contender_id}">
+					<span class="float-contacts__btn js__show-float-contacts">${params.contender}</span>
+				</div>`;
 			},
 		},
-		{
-			title: "Тип проекта", field: "type",
-			width: "15%",
+		{ title: "Тип проекта", field: "type", width: "15%",
 			append: function (params) {
-				return `
-					${params.type || "-"}
-				`;
+				return params.type || "-";
 			},
 		},
-		{
-			title: "Ответственный", field: "request_curator",
-			width: "15%",
+		{ title: "Ответственный", field: "request_curator", width: "15%",
 			append: function (params) {
 				return params.request_curator
 					? '<div class="float-contacts js__float-contacts"' +
-							' data-position="left"' +
-							' data-target="Staff"' +
-							` data-id="${params.request_curator_id}">` +
-							`<span class="float-contacts__btn js__show-float-contacts">${params.request_curator}</span>` +
-							"</div>"
+						' data-position="left"' +
+						' data-target="Staff"' +
+						` data-id="${params.request_curator_id}">` +
+						`<span class="float-contacts__btn js__show-float-contacts">${params.request_curator}</span>` +
+						"</div>"
 					: "-";
 			},
 		},
-		{
-			title: " ", field: "external-link",
-			width: "6%",
-			// tableСell:
-			// 	'<div class="styled-table__heading_item flex jc-c ai-c" style="width:5%">',
+		{ title: "", field: "external-link", width: "6%",
 			append: function (params) {
-				return `
-				<div class="styled-table__heading_item flex jc-c ai-c" style="height:100%">
+				return `<div class="styled-table__heading_item flex jc-c ai-c" style="height:100%">
 					<a class="external-link" href="/lk/proposal_info/?id=${params.id}" title="Подробнее"></a>
 				</div>`;
 			},
