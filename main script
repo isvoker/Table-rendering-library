@@ -1,12 +1,12 @@
 const libraryRenderingForm = (function () {
-	"use strict";
+	'use strict';
 
-	let tableBody,
-	container;
 	const tableBodyPlaceholder = 'Тут пока нет ни одной записи';
 
-	const loadRows = (options) => {
-		const xhr = {
+	function loadRows(options) {
+		const tableBody = options.tableProperties.container.querySelector('.proposals_table');
+
+		Sensei.xhr({
 			data: options.controllerParams,
 
 			onBeforeSend: () => {
@@ -15,32 +15,34 @@ const libraryRenderingForm = (function () {
 			onComplete: () => {
 				Sensei.unblockIt(tableBody);
 			},
-			onSuccess: (data) => {
-				checkBtnLoadMore(data, options);
-				addRowsToTable(data.rows, options);
+			onSuccess: (response) => {
+				checkBtnLoadMore(response, options);
+				addRowsToTable(response.rows, options);
 
-				if(options.paramsForCreatTabl.hasOwnProperty('loadAfter')){
-					options.paramsForCreatTabl.loadAfter();
+				if (options.tableProperties.hasOwnProperty('loadAfter')) {
+					options.tableProperties.loadAfter(response);
 				}
-			},
-		};
-		Sensei.xhr(xhr);
+			}
+		});
 	}
 
-	function checkBtnLoadMore(data, options) {
-
-		if(options.paramsForCreatTabl.hasOwnProperty('checkBtnLoadAll') && data.thereMoreEntries){
-			const btn = document.getElementById('proposal-log__load-all');
-			Sensei.hide(btn);
-		}
-
-		if (!options.paramsForCreatTabl.btnLoadMore) {
+	function checkBtnLoadMore(response, options) {
+		if (
+			options.tableProperties.hasOwnProperty('checkBtnLoadAll')
+			&& response.thereMoreEntries
+		) {
+			Sensei.hide(
+				document.getElementById('proposal-log__load-all')
+			);
 			return;
 		}
-		const tablContainer = options.paramsForCreatTabl.container;
-		const btnLoadMore = tablContainer.querySelector(".load-more-btn");
 
-		if (data.thereMoreEntries) {
+		if (!options.tableProperties.btnLoadMore) {
+			return;
+		}
+		const btnLoadMore = options.tableProperties.container.querySelector('.load-more-btn');
+
+		if (response.thereMoreEntries) {
 			Sensei.hide(btnLoadMore);
 		} else {
 			Sensei.show(btnLoadMore);
@@ -50,94 +52,84 @@ const libraryRenderingForm = (function () {
 			Sensei.ignoreEvent(event);
 
 			options.controllerParams.page++;
-			options.paramsForCreatTabl.clearTable = false;
+			options.tableProperties.clearTable = false;
 			loadRows(options);
 		});
 	}
 
-	function clearTable(tableBody) {
-		tableBody.innerText = "";
+	function clearTable(options) {
+		options.tableProperties.container.querySelector('.proposals_table').innerText = '';
 	}
 
-	function createStaticPartOfTable(options) {
-		container = options.container;
+	function buildTable(options) {
 		fillTableContainer(options);
 		addHeaderToTable(options);
 	}
 
 	function fillTableContainer(options) {
-		let header_html = '<div class="styled-table__shell ta-c"></div>',
-			btnLoad;
+		const tableEl = options.tableProperties.container;
+
+		let header_html = '<div class="styled-table__shell ta-c"></div>';
 
 		let body_html = `<div class="styled-table__rows proposals_table">
 			<div class="styled-table__placeholder">${tableBodyPlaceholder}</div>
 		</div>`;
 
-		if (options.btnLoadMore) {
-			btnLoad = `<div class="flex jc-c ">
-				<a class="load-more-btn hidden-el js__more_rows" data-page="1" href="#">Загрузить больше</a>
-			</div>`;
-		} else {
-			btnLoad = "";
+		tableEl.innerHTML += header_html + body_html;
+
+		if (options.tableProperties.btnLoadMore) {
+			tableEl.innerHTML +=
+			'<div class="flex jc-c">' +
+				'<a class="load-more-btn hidden-el js__more_rows" data-page="1" href="#">Загрузить больше</a>' +
+			'</div>';
 		}
-
-		container.innerHTML += header_html + body_html + btnLoad;
-		tableBody = container.querySelector(`.proposals_table`);
-
 	}
 
 	function addHeaderToTable(options) {
-		const cellsCollection = options.cellsCollection;
-		const headerContainer = container.querySelector(".styled-table__shell");
+		const headerContainer = options.tableProperties.container.querySelector('.styled-table__shell');
 
 		let header_html = '<div class="styled-table__heading container flex ai-c">';
 
-		cellsCollection.forEach(function (cell) {
-			header_html += `<div class="styled-table__heading_item" style="width:${cell.width}">${cell.title}</div>`;
+		options.tableProperties.columns.forEach((column) => {
+			header_html += `<div class="styled-table__heading_item" style="width:${column.width}">${column.title}</div>`;
 		});
 		headerContainer.innerHTML = header_html + '</div>';
 	}
 
 	function addRowsToTable(rows, options) {
-		const optionsForCreatBody = options.paramsForCreatTabl;
-		const tableContainer = optionsForCreatBody.container;
-		const tableBody = tableContainer.querySelector(".proposals_table");
+		const tableProperties = options.tableProperties;
+		const tableBody = tableProperties.container.querySelector('.proposals_table');
 
-		if (optionsForCreatBody.clearTable) {
-			clearTable(tableBody);
+		if (tableProperties.clearTable) {
+			clearTable(options);
 			if (rows.length < 1) {
-				tableBody.innerHTML = `<div class="styled-table__placeholder">${tableBodyPlaceholder}</div>`
+				tableBody.innerHTML = `<div class="styled-table__placeholder">${tableBodyPlaceholder}</div>`;
 			}
 		}
 
-		let tableRow = "",
-			tableCell,
-			rowContainer_html;
+		rows.forEach((row) => {
+			let rowInnerHtml = '';
 
-		const cellsCollection = optionsForCreatBody.cellsCollection;
-		rows.forEach(function (row) {
-			rowContainer_html = optionsForCreatBody.rowContainer(row);
+			tableProperties.columns.forEach((column) => {
+				let cellHtml = `<div class="styled-table__cell" style="width:${column.width}">`;
 
-			cellsCollection.forEach(function (cell) {
-
-				tableCell = `<div class="styled-table__cell " style='width:${cell.width}'>`;
-
-				if (cell.hasOwnProperty("append")) {
-					tableCell += cell.append(row);
+				if (column.hasOwnProperty('cellBuilder')) {
+					cellHtml += column.cellBuilder(row);
 				} else {
-					tableCell += row[cell.field];
+					cellHtml += row[column.field];
 				}
-				tableCell += "</div>";
+				cellHtml += '</div>';
 
-				tableRow += tableCell;
+				rowInnerHtml += cellHtml;
 			});
-			tableBody.innerHTML += rowContainer_html + tableRow + "</div>";
-			tableRow = "";
+
+			tableBody.innerHTML += tableProperties.rowBuilder(rowInnerHtml, row);
 		});
 	}
 
 	return {
-		loadRows: loadRows,
-		createStaticPartOfTable: createStaticPartOfTable,
+		buildTable: buildTable,
+		clearTable: clearTable,
+		loadRows: loadRows
 	};
-})();
+}());
