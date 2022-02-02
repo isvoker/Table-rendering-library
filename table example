@@ -1,46 +1,89 @@
-const proposals = (function () {
-	"use strict";
-	let options, container, page;
+(function () {
+	'use strict';
+
+	const url_proposal_info = '/lk/proposal_info/';
+
+	const columns = [
+		{ title: 'Учебный год', field: 'contest', width: '10%' },
+		{ title: 'Статус', field: 'status', width: '15%' },
+		{ title: 'Муниципальное образование', field: 'joinProposalLocation', width: '20%',
+			cellBuilder: (row) => {
+				return commonFunctions.joinProposalLocation(row);
+			}
+		},
+		{ title: 'Образовательная организация', field: 'contender', width: '20%',
+			cellBuilder: (row) => {
+				return `<div class="float-contacts js__float-contacts"
+					data-position="right"
+					data-target="Contender"
+					data-id="${row.contender_id}">
+					<span class="float-contacts__btn js__show-float-contacts">${row.contender}</span>
+				</div>`;
+			}
+		},
+		{ title: 'Тип проекта', field: 'type', width: '15%',
+			cellBuilder: (row) => {
+				return row.type || '-';
+			}
+		},
+		{ title: 'Ответственный', field: 'request_curator', width: '15%',
+			cellBuilder: (row) => {
+				return row.request_curator
+					? '<div class="float-contacts js__float-contacts"' +
+					' data-position="left"' +
+					' data-target="Staff"' +
+					` data-id="${row.request_curator_id}">` +
+					`<span class="float-contacts__btn js__show-float-contacts">${row.request_curator}</span>` +
+					"</div>"
+					: "-";
+			}
+		},
+		{ title: '', field: 'external-link', width: '6%',
+			cellBuilder: (row) => {
+				return `<div class="styled-table__heading_item flex jc-c ai-c" style="height:100%">
+					<a class="external-link" href="${url_proposal_info}?id=${row.id}" title="Подробнее"></a>
+				</div>`;
+			}
+		},
+	];
 
 	function init() {
-		container = document.getElementById("tableContainer");
+		const container = document.getElementById('proposals-table');
 
 		if (!container) {
 			return;
 		}
 
-		let form = document.getElementById('filter-form');
-		page = 1;
 		Filter.init();
 
-		options = {
+		const options = {
 			controllerParams: {
-				controller: "proposals.d",
-				action: "lk_proposals",
-				category: form.dataset.category,
+				controller: 'proposals.d',
+				action: 'lk_proposals',
+				category: Filter.getDataCategory(),
 				filter: Filter.getValues(),
-				page: page,
+				page: 1
 			},
 
-			paramsForCreatTabl: {
-				cellsCollection: cellsCollection,
-				rowContainer: function () {
-					return `<div class="styled-table__row flex">`;
+			tableProperties: {
+				columns: columns,
+				rowBuilder: (rowInnerHtml) => {
+					return `<div class="styled-table__row flex">${rowInnerHtml}</div>`;
 				},
 				btnLoadMore: true,
 				container: container,
-				clearTable: true,
+				clearTable: true
 			},
 		};
 
 		Filter.onApply((filterValues) => {
 			options.controllerParams.page = 1;
 			options.controllerParams.filter = filterValues;
-			options.paramsForCreatTabl.clearTable = true;
+			options.tableProperties.clearTable = true;
 			libraryRenderingForm.loadRows(options);
 		});
 
-		libraryRenderingForm.createStaticPartOfTable(options.paramsForCreatTabl);
+		libraryRenderingForm.buildTable(options);
 		libraryRenderingForm.loadRows(options);
 		addListeners();
 	}
@@ -48,8 +91,8 @@ const proposals = (function () {
 	function getSpreadsheet(type) {
 		Sensei.xhr({
 			data: {
-				controller: "proposals.d",
-				action: "getSpreadsheet",
+				controller: 'proposals.d',
+				action: 'getSpreadsheet',
 				type: type,
 				category: Filter.getDataCategory(),
 				filter: Filter.getValues(),
@@ -69,9 +112,9 @@ const proposals = (function () {
 	}
 
 	function addListeners() {
-		[...document.getElementsByClassName("js__export-to-spreadsheet")].forEach(
+		[...document.getElementsByClassName('js__export-to-spreadsheet')].forEach(
 			(btn) => {
-				btn.addEventListener("click", (evt) => {
+				btn.addEventListener('click', (evt) => {
 					Sensei.ignoreEvent(evt);
 					getSpreadsheet(btn.dataset.type);
 				});
@@ -79,51 +122,7 @@ const proposals = (function () {
 		);
 	}
 
-	const cellsCollection = [
-		{ title: "Учебный год", field: "contest", width: "10%" },
-		{ title: "Статус", field: "status", width: "15%" },
-		{ title: "Муниципальное образование", field: "joinProposalLocation", width: "20%",
-			append: function (params) {
-				return commonTableFunctions.joinProposalLocation(params);
-			},
-		},
-		{ title: "Образовательная организация", field: "contender", width: "20%",
-			append: function (params) {
-				return `<div class="float-contacts js__float-contacts"
-					data-position="right"
-					data-target="Contender"
-					data-id="${params.contender_id}">
-					<span class="float-contacts__btn js__show-float-contacts">${params.contender}</span>
-				</div>`;
-			},
-		},
-		{ title: "Тип проекта", field: "type", width: "15%",
-			append: function (params) {
-				return params.type || "-";
-			},
-		},
-		{ title: "Ответственный", field: "request_curator", width: "15%",
-			append: function (params) {
-				return params.request_curator
-					? '<div class="float-contacts js__float-contacts"' +
-						' data-position="left"' +
-						' data-target="Staff"' +
-						` data-id="${params.request_curator_id}">` +
-						`<span class="float-contacts__btn js__show-float-contacts">${params.request_curator}</span>` +
-						"</div>"
-					: "-";
-			},
-		},
-		{ title: "", field: "external-link", width: "6%",
-			append: function (params) {
-				return `<div class="styled-table__heading_item flex jc-c ai-c" style="height:100%">
-					<a class="external-link" href="/lk/proposal_info/?id=${params.id}" title="Подробнее"></a>
-				</div>`;
-			},
-		},
-	];
-
-	document.addEventListener("DOMContentLoaded", () => {
+	document.addEventListener('DOMContentLoaded', () => {
 		init();
 	});
-})();
+}());
